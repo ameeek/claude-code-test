@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Chat Terminal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <span class="header-text">SYSTEM TERMINAL v2.049</span>
+            <span class="connection-status" id="connection-status">● CONNECTED</span>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="message system-message">
+                <span class="message-prefix">[SYSTEM]</span>
+                <span class="message-text">Neural link established. Welcome to the Matrix.</span>
+            </div>
+            <div class="message system-message">
+                <span class="message-prefix">[SYSTEM]</span>
+                <span class="message-text">Type your message and press Enter to communicate.</span>
+            </div>
+        </div>
+
+        <div class="chat-input-container">
+            <span class="input-prompt">>&nbsp;</span>
+            <input type="text" id="chat-input" class="chat-input" placeholder="Enter message..." autocomplete="off">
+            <span class="cursor-blink"></span>
+        </div>
+    </div>
+
+    <div class="scanlines"></div>
+
+    <script src="matrix.js"></script>
+    <script src="chat.js"></script>
+</body>
+</html>
