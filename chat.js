@@ -5,10 +5,9 @@
 
 (function() {
     // ============================================
-    // CONFIGURATION - Update this URL with your n8n webhook
+    // API ENDPOINT - Uses serverless proxy to hide webhook URL
     // ============================================
-    const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/0bf32d32-fa45-471b-bb3b-ac7b3a568513';
-    // Example: 'https://your-n8n-instance.com/webhook/your-webhook-id'
+    const API_ENDPOINT = '/api/chat';
     // ============================================
 
     // DOM Elements
@@ -181,11 +180,6 @@
     async function sendMessage(message) {
         if (isWaitingForResponse) return;
 
-        // Check if webhook URL is configured
-        if (N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL_HERE') {
-            addMessage('error', '[ERROR]', 'Webhook URL not configured. Please update N8N_WEBHOOK_URL in chat.js');
-            return;
-        }
 
         isWaitingForResponse = true;
         updateConnectionStatus('pending', '● TRANSMITTING...');
@@ -197,8 +191,7 @@
         showTypingIndicator();
 
         try {
-            const url = new URL(N8N_WEBHOOK_URL);
-            url.searchParams.append('message', message);
+            const url = `${API_ENDPOINT}?message=${encodeURIComponent(message)}`;
             const response = await fetch(url, {
                 method: 'GET',
             });
@@ -288,7 +281,7 @@
 
         console.log('%c[MATRIX TERMINAL]', 'color: #00bfff; font-size: 16px;');
         console.log('%cNeural interface initialized.', 'color: #00bfff;');
-        console.log('%cConfigure N8N_WEBHOOK_URL in chat.js to enable communications.', 'color: #0088cc;');
+        console.log('%cSecure proxy connection established.', 'color: #0088cc;');
     }
 
     // Initialize when DOM is ready
