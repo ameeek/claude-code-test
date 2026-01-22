@@ -1,287 +1,340 @@
 /**
- * Chat Functionality for n8n Webhook Integration
- * Handles sending messages and displaying responses
+ * Phonics Passage Generator
+ * Sends form data to API and displays generated reading passage
+ * Level-based parameters from Sparks curriculum
  */
 
 (function() {
     // ============================================
-    // API ENDPOINT - Uses serverless proxy to hide webhook URL
+    // API ENDPOINT - Uses serverless proxy
     // ============================================
     const API_ENDPOINT = '/api/chat';
     // ============================================
 
+    // Level Configuration based on Sparks curriculum
+    const LEVEL_CONFIG = {
+        1: {
+            name: 'First Words',
+            narrative: 'Single Sentence',
+            narrativeInstructions: 'Write a single, descriptive statement about a noun. Do not attempt a plot or action sequence.',
+            wordStructure: 'CVC only. Strictly 3-sound words. NO adjacent consonants.',
+            wordCountRange: [3, 8],
+            sentenceCount: 1,
+            maxSentenceLength: 5,
+            syntax: 'Atomic Sentences. Use strictly simple sentences (Subject-Verb or Subject-Verb-Adjective). NO compound sentences. NO commas.',
+            saturation: 'Extreme (40%+). Force the sound.',
+            saturationPercent: 40
+        },
+        2: {
+            name: 'Connected Text',
+            narrative: 'Connected Sentences',
+            narrativeInstructions: 'Describe a static scene or snapshot. Focus on object locations using "is" and prepositions. No time should pass.',
+            wordStructure: 'Prioritize final blends (CVCC) over initial blends (CCVC).',
+            wordCountRange: [10, 25],
+            sentenceCount: [2, 3],
+            maxSentenceLength: 8,
+            syntax: 'Locational Links. Extend sentences using prepositional phrases at the end to show location, like "in", "on", "at".',
+            saturation: 'Maximized (30%+). Force the sound.',
+            saturationPercent: 30
+        },
+        3: {
+            name: 'Action Stories',
+            narrative: 'Micro-Story (First to Then)',
+            narrativeInstructions: 'Write a simple chronological sequence (Action A > Action B). Focus on physical movements.',
+            wordStructure: 'CVCC and CCVC allowed.',
+            wordCountRange: [20, 40],
+            sentenceCount: [3, 5],
+            maxSentenceLength: 8,
+            syntax: 'Compound Predicates. Allow one subject to perform two actions joined by "and". Keep the subject the same.',
+            saturation: 'High (25%+). Practice the sound.',
+            saturationPercent: 25
+        },
+        4: {
+            name: 'Simple Plots',
+            narrative: 'Narrative (Problem to Solution)',
+            narrativeInstructions: 'Create a short scene with a clear character goal or minor problem. Include at least one line of dialogue or interaction.',
+            wordStructure: 'All word structures allowed.',
+            wordCountRange: [50, 80],
+            sentenceCount: [5, 10],
+            maxSentenceLength: 10,
+            syntax: 'Descriptive Expansion. Use adjectives and adverbs to lengthen sentences. You may join two simple ideas with "and".',
+            saturation: 'High (25%). Natural flow priority.',
+            saturationPercent: 25
+        },
+        5: {
+            name: 'Rich Narratives',
+            narrative: 'Rich Narrative (Setting/Emotion)',
+            narrativeInstructions: 'Establish a setting and character feelings before the action starts. Use descriptive language. May include dialogue.',
+            wordStructure: 'Prioritize words with 2+ syllables.',
+            wordCountRange: [70, 100],
+            sentenceCount: [8, 12],
+            maxSentenceLength: 12,
+            syntax: 'Varied Openers. Do not start every sentence with the subject. Use introductory phrases to set the scene.',
+            saturation: 'High (20-25%). Natural flow priority.',
+            saturationPercent: 20
+        }
+    };
+
     // DOM Elements
-    const chatMessages = document.getElementById('chat-messages');
-    const chatInput = document.getElementById('chat-input');
-    const connectionStatus = document.getElementById('connection-status');
+    const form = document.getElementById('passage-form');
+    const phonemeInput = document.getElementById('phoneme-input');
+    const generateButton = document.getElementById('generate-button');
+    const outputSection = document.getElementById('output-section');
 
     // State
-    let isWaitingForResponse = false;
+    let isGenerating = false;
 
     /**
-     * Create a message element
+     * Get selected level from radio buttons
      */
-    function createMessageElement(type, prefix, text) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}-message`;
-
-        const prefixSpan = document.createElement('span');
-        prefixSpan.className = 'message-prefix';
-        prefixSpan.textContent = prefix;
-
-        const textSpan = document.createElement('span');
-        textSpan.className = 'message-text';
-        textSpan.textContent = text;
-
-        messageDiv.appendChild(prefixSpan);
-        messageDiv.appendChild(textSpan);
-
-        return messageDiv;
+    function getSelectedLevel() {
+        const selected = document.querySelector('input[name="level"]:checked');
+        return selected ? parseInt(selected.value, 10) : 3;
     }
 
     /**
-     * Create typing indicator element
+     * Build the prompt based on level configuration
      */
-    function createTypingIndicator() {
-        const indicator = document.createElement('div');
-        indicator.className = 'message bot-message';
-        indicator.id = 'typing-indicator';
+    function buildPrompt(phoneme, level) {
+        const config = LEVEL_CONFIG[level];
+        const wordCount = config.wordCountRange[1]; // Use max of range
+        const sentenceCount = Array.isArray(config.sentenceCount)
+            ? config.sentenceCount[1]
+            : config.sentenceCount;
 
-        const prefix = document.createElement('span');
-        prefix.className = 'message-prefix';
-        prefix.textContent = '[ORACLE]';
+        return `You are a phonics reading passage generator for young children (ages 4-6). Generate a reading passage following these STRICT rules:
 
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'typing-indicator';
-        typingDiv.innerHTML = '<span></span><span></span><span></span>';
+TARGET PHONEME: "${phoneme}"
+LEVEL: ${level} (${config.name})
 
-        indicator.appendChild(prefix);
-        indicator.appendChild(typingDiv);
+=== UNIVERSAL RULES (MUST FOLLOW) ===
+1. All vocabulary must be familiar to a 4-year-old child in daily conversation.
+2. Do NOT use archaic or literary words (no "lad", "fig", "bog" unless common context).
+3. If a word's meaning is too advanced for a 4-year-old, do NOT use it.
+4. All words must be real, dictionary-defined English words. NO nonsense/pseudo-words.
+5. The text must make logical, physical sense. Verify scenarios are possible.
+6. Insert a forward slash / at natural phrase boundaries for readability.
 
-        return indicator;
+=== LEVEL-SPECIFIC PARAMETERS ===
+NARRATIVE STRUCTURE: ${config.narrative}
+${config.narrativeInstructions}
+
+WORD STRUCTURE: ${config.wordStructure}
+
+WORD COUNT: ${config.wordCountRange[0]}-${config.wordCountRange[1]} words total
+SENTENCE COUNT: ${typeof config.sentenceCount === 'number' ? config.sentenceCount : config.sentenceCount[0] + '-' + config.sentenceCount[1]} sentences
+MAX WORDS PER SENTENCE: ${config.maxSentenceLength}
+
+SYNTAX RULES: ${config.syntax}
+
+TARGET SOUND SATURATION: ${config.saturation}
+Maximize words containing the "${phoneme}" sound. Choose words with the target sound over simpler synonyms.
+
+=== OUTPUT FORMAT ===
+Return ONLY the reading passage text with / marks for phrase breaks. Do not include any explanations, headers, or meta-commentary.
+
+Example format: "The fat cat / sat on the mat. / It had a nap."`;
     }
 
     /**
-     * Add message to chat
+     * Show loading state
      */
-    function addMessage(type, prefix, text) {
-        const messageElement = createMessageElement(type, prefix, text);
-        chatMessages.appendChild(messageElement);
-        scrollToBottom();
+    function showLoadingState() {
+        outputSection.innerHTML = `
+            <div class="loading-card">
+                <div class="loading-spinner" role="status" aria-label="Loading"></div>
+                <p class="loading-text">Generating your passage...</p>
+            </div>
+        `;
+        outputSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     /**
-     * Typewriter effect - reveals text character by character
+     * Show result card with generated passage
      */
-    function typewriterEffect(element, text, callback) {
-        const glitchChars = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`αβγδεζηθ';
-        let index = 0;
-        element.textContent = '';
+    function showResultCard(phoneme, level, passage) {
+        const config = LEVEL_CONFIG[level];
+        const wordCount = passage.replace(/\//g, '').split(/\s+/).filter(w => w.length > 0).length;
 
-        function typeNextChar() {
-            if (index < text.length) {
-                const char = text[index];
+        outputSection.innerHTML = `
+            <article class="result-card">
+                <header class="result-header">
+                    <h2 class="result-title">Your Reading Passage</h2>
+                    <div class="result-meta">
+                        <span class="meta-tag phoneme">Phoneme: ${phoneme}</span>
+                        <span class="meta-tag level">Level ${level}: ${config.name}</span>
+                        <span class="meta-tag words">~${wordCount} words</span>
+                    </div>
+                </header>
 
-                // Occasionally show a glitch character first
-                if (Math.random() > 0.92 && char !== ' ') {
-                    const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
-                    element.textContent += glitchChar;
-                    scrollToBottom();
+                <div class="result-content">
+                    <p class="passage-text">${formatPassage(passage)}</p>
+                </div>
 
-                    setTimeout(() => {
-                        element.textContent = element.textContent.slice(0, -1) + char;
-                        index++;
-                        scrollToBottom();
-                        scheduleNextChar();
-                    }, 50);
-                } else {
-                    element.textContent += char;
-                    index++;
-                    scrollToBottom();
-                    scheduleNextChar();
-                }
-            } else if (callback) {
-                callback();
-            }
+                <div class="result-actions">
+                    <button type="button" class="action-button primary" id="copy-button" aria-label="Copy passage to clipboard">
+                        <span>Copy Passage</span>
+                        <span aria-hidden="true">📋</span>
+                    </button>
+                    <button type="button" class="action-button secondary" id="new-passage-button" aria-label="Generate new passage">
+                        <span>Generate Another</span>
+                        <span aria-hidden="true">🔄</span>
+                    </button>
+                </div>
+            </article>
+        `;
+
+        // Add event listeners to new buttons
+        document.getElementById('copy-button').addEventListener('click', () => copyToClipboard(passage));
+        document.getElementById('new-passage-button').addEventListener('click', scrollToForm);
+
+        outputSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    /**
+     * Format passage for display (convert / to line breaks)
+     */
+    function formatPassage(passage) {
+        return passage
+            .replace(/\s*\/\s*/g, '<br>')
+            .replace(/\n/g, '<br>');
+    }
+
+    /**
+     * Show error state
+     */
+    function showErrorState(message) {
+        outputSection.innerHTML = `
+            <div class="error-card">
+                <h2 class="error-title">
+                    <span aria-hidden="true">⚠️</span>
+                    <span>Oops! Something went wrong</span>
+                </h2>
+                <p class="error-message">${message}</p>
+            </div>
+        `;
+        outputSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    /**
+     * Copy passage to clipboard (without formatting marks)
+     */
+    async function copyToClipboard(text) {
+        try {
+            // Remove / marks for clean copy
+            const cleanText = text.replace(/\s*\/\s*/g, ' ').replace(/\s+/g, ' ').trim();
+            await navigator.clipboard.writeText(cleanText);
+
+            // Visual feedback
+            const copyButton = document.getElementById('copy-button');
+            const originalHTML = copyButton.innerHTML;
+            copyButton.classList.add('copied');
+            copyButton.innerHTML = `
+                <span>Copied!</span>
+                <span aria-hidden="true">✓</span>
+            `;
+
+            // Announce to screen readers
+            const announcement = document.createElement('div');
+            announcement.setAttribute('role', 'status');
+            announcement.setAttribute('aria-live', 'polite');
+            announcement.className = 'sr-only';
+            announcement.textContent = 'Passage copied to clipboard';
+            document.body.appendChild(announcement);
+
+            setTimeout(() => {
+                copyButton.classList.remove('copied');
+                copyButton.innerHTML = originalHTML;
+                document.body.removeChild(announcement);
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to copy:', error);
+            showErrorState('Failed to copy to clipboard. Please try selecting and copying the text manually.');
         }
-
-        function scheduleNextChar() {
-            // Variable typing speed for natural feel
-            const baseSpeed = 30;
-            const variance = Math.random() * 40;
-            const delay = baseSpeed + variance;
-            setTimeout(typeNextChar, delay);
-        }
-
-        typeNextChar();
     }
 
     /**
-     * Add message with typewriter effect (for bot messages)
+     * Scroll back to form
      */
-    function addMessageWithTypewriter(type, prefix, text, callback) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${type}-message`;
-
-        const prefixSpan = document.createElement('span');
-        prefixSpan.className = 'message-prefix';
-        prefixSpan.textContent = prefix;
-
-        const textSpan = document.createElement('span');
-        textSpan.className = 'message-text';
-
-        messageDiv.appendChild(prefixSpan);
-        messageDiv.appendChild(textSpan);
-        chatMessages.appendChild(messageDiv);
-        scrollToBottom();
-
-        typewriterEffect(textSpan, text, callback);
+    function scrollToForm() {
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        phonemeInput.focus();
     }
 
     /**
-     * Show typing indicator
+     * Generate passage by calling API
      */
-    function showTypingIndicator() {
-        const indicator = createTypingIndicator();
-        chatMessages.appendChild(indicator);
-        scrollToBottom();
-    }
+    async function generatePassage(phoneme, level) {
+        if (isGenerating) return;
 
-    /**
-     * Hide typing indicator
-     */
-    function hideTypingIndicator() {
-        const indicator = document.getElementById('typing-indicator');
-        if (indicator) {
-            indicator.remove();
-        }
-    }
-
-    /**
-     * Scroll chat to bottom
-     */
-    function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    /**
-     * Update connection status display
-     */
-    function updateConnectionStatus(status, text) {
-        connectionStatus.textContent = text;
-        connectionStatus.style.color = status === 'connected' ? '#00bfff' :
-                                       status === 'error' ? '#ff4444' :
-                                       '#ffaa00';
-    }
-
-    /**
-     * Send message to n8n webhook
-     */
-    async function sendMessage(message) {
-        if (isWaitingForResponse) return;
-
-
-        isWaitingForResponse = true;
-        updateConnectionStatus('pending', '● TRANSMITTING...');
-
-        // Display user message
-        addMessage('user', '[USER]', message);
-
-        // Show typing indicator
-        showTypingIndicator();
+        isGenerating = true;
+        generateButton.disabled = true;
+        showLoadingState();
 
         try {
-            const url = `${API_ENDPOINT}?message=${encodeURIComponent(message)}`;
+            // Build the detailed prompt based on level
+            const prompt = buildPrompt(phoneme, level);
+
+            const url = `${API_ENDPOINT}?message=${encodeURIComponent(prompt)}`;
+
             const response = await fetch(url, {
                 method: 'GET',
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`API error: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
 
-            // Hide typing indicator
-            hideTypingIndicator();
+            // Extract the passage from various possible response formats
+            const passage = data.response || data.output || data.message || data.text || JSON.stringify(data);
 
-            // Display bot response with typewriter effect
-            const botResponse = data.response || data.output || data.message || data.text || JSON.stringify(data);
-            addMessageWithTypewriter('bot', '[ORACLE]', botResponse, () => {
-                updateConnectionStatus('connected', '● CONNECTED');
-                isWaitingForResponse = false;
-            });
-            return;
+            // Display the result
+            showResultCard(phoneme, level, passage);
 
         } catch (error) {
-            console.error('Error sending message:', error);
-
-            // Hide typing indicator
-            hideTypingIndicator();
-
-            // Display error message
-            addMessage('error', '[ERROR]', `Transmission failed: ${error.message}`);
-
-            updateConnectionStatus('error', '● CONNECTION ERROR');
-
-            // Reset status after delay
-            setTimeout(() => {
-                updateConnectionStatus('connected', '● CONNECTED');
-            }, 3000);
+            console.error('Error generating passage:', error);
+            showErrorState(
+                'We couldn\'t generate your passage right now. Please check your connection and try again.'
+            );
+        } finally {
+            isGenerating = false;
+            generateButton.disabled = false;
         }
-
-        isWaitingForResponse = false;
     }
 
     /**
-     * Handle input submission
+     * Handle form submission
      */
-    function handleSubmit() {
-        const message = chatInput.value.trim();
+    function handleSubmit(event) {
+        event.preventDefault();
 
-        if (message) {
-            sendMessage(message);
-            chatInput.value = '';
+        // Get form values
+        const phoneme = phonemeInput.value.trim();
+        const level = getSelectedLevel();
+
+        // Validate
+        if (!phoneme) {
+            phonemeInput.focus();
+            return;
         }
+
+        // Generate passage
+        generatePassage(phoneme, level);
     }
 
     /**
      * Initialize event listeners
      */
     function init() {
-        // Handle Enter key
-        chatInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-            }
-        });
+        // Form submission
+        form.addEventListener('submit', handleSubmit);
 
-        // Focus input on page load
-        chatInput.focus();
+        // Auto-focus first input for better UX
+        phonemeInput.focus();
 
-        // Keep focus on input when clicking anywhere in chat container
-        document.querySelector('.chat-container').addEventListener('click', function() {
-            chatInput.focus();
-        });
-
-        // Add glitch effect to messages occasionally
-        setInterval(function() {
-            if (Math.random() > 0.95) {
-                const messages = chatMessages.querySelectorAll('.message-text');
-                if (messages.length > 0) {
-                    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-                    randomMessage.style.textShadow = '2px 0 #ff0000, -2px 0 #00ffff';
-                    setTimeout(() => {
-                        randomMessage.style.textShadow = '';
-                    }, 100);
-                }
-            }
-        }, 2000);
-
-        console.log('%c[MATRIX TERMINAL]', 'color: #00bfff; font-size: 16px;');
-        console.log('%cNeural interface initialized.', 'color: #00bfff;');
-        console.log('%cSecure proxy connection established.', 'color: #0088cc;');
+        console.log('Phonics Passage Generator initialized');
     }
 
     // Initialize when DOM is ready
