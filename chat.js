@@ -7,7 +7,7 @@
     // ============================================
     // CONFIGURATION - Update this URL with your n8n webhook
     // ============================================
-    const N8N_WEBHOOK_URL = 'YOUR_N8N_WEBHOOK_URL_HERE';
+    const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/0bf32d32-fa45-471b-bb3b-ac7b3a568513';
     // Example: 'https://your-n8n-instance.com/webhook/your-webhook-id'
     // ============================================
 
@@ -129,12 +129,10 @@
         showTypingIndicator();
 
         try {
-            const response = await fetch(N8N_WEBHOOK_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ message: message })
+            const url = new URL(N8N_WEBHOOK_URL);
+            url.searchParams.append('message', message);
+            const response = await fetch(url, {
+                method: 'GET',
             });
 
             if (!response.ok) {
