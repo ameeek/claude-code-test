@@ -72,6 +72,74 @@
     }
 
     /**
+     * Typewriter effect - reveals text character by character
+     */
+    function typewriterEffect(element, text, callback) {
+        const glitchChars = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`αβγδεζηθ';
+        let index = 0;
+        element.textContent = '';
+
+        function typeNextChar() {
+            if (index < text.length) {
+                const char = text[index];
+
+                // Occasionally show a glitch character first
+                if (Math.random() > 0.92 && char !== ' ') {
+                    const glitchChar = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+                    element.textContent += glitchChar;
+                    scrollToBottom();
+
+                    setTimeout(() => {
+                        element.textContent = element.textContent.slice(0, -1) + char;
+                        index++;
+                        scrollToBottom();
+                        scheduleNextChar();
+                    }, 50);
+                } else {
+                    element.textContent += char;
+                    index++;
+                    scrollToBottom();
+                    scheduleNextChar();
+                }
+            } else if (callback) {
+                callback();
+            }
+        }
+
+        function scheduleNextChar() {
+            // Variable typing speed for natural feel
+            const baseSpeed = 30;
+            const variance = Math.random() * 40;
+            const delay = baseSpeed + variance;
+            setTimeout(typeNextChar, delay);
+        }
+
+        typeNextChar();
+    }
+
+    /**
+     * Add message with typewriter effect (for bot messages)
+     */
+    function addMessageWithTypewriter(type, prefix, text, callback) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}-message`;
+
+        const prefixSpan = document.createElement('span');
+        prefixSpan.className = 'message-prefix';
+        prefixSpan.textContent = prefix;
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'message-text';
+
+        messageDiv.appendChild(prefixSpan);
+        messageDiv.appendChild(textSpan);
+        chatMessages.appendChild(messageDiv);
+        scrollToBottom();
+
+        typewriterEffect(textSpan, text, callback);
+    }
+
+    /**
      * Show typing indicator
      */
     function showTypingIndicator() {
@@ -144,11 +212,13 @@
             // Hide typing indicator
             hideTypingIndicator();
 
-            // Display bot response
+            // Display bot response with typewriter effect
             const botResponse = data.response || data.output || data.message || data.text || JSON.stringify(data);
-            addMessage('bot', '[ORACLE]', botResponse);
-
-            updateConnectionStatus('connected', '● CONNECTED');
+            addMessageWithTypewriter('bot', '[ORACLE]', botResponse, () => {
+                updateConnectionStatus('connected', '● CONNECTED');
+                isWaitingForResponse = false;
+            });
+            return;
 
         } catch (error) {
             console.error('Error sending message:', error);
